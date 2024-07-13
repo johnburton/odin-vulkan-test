@@ -37,15 +37,19 @@ main :: proc() {
 
 check_vk :: proc(result: vk.Result, location := #caller_location) {
 	if result != .SUCCESS {
-		fmt.panicf("Vulkan error: {} @ {}\n", result, location)
+		if result > .SUCCESS do fmt.panicf("Vulkan error: {} @ {}\n", result, location)
+		fmt.printf("Vulkan: {}: {}\n", result, location)
 	}
 }
 
 initialize_main_window :: proc () {
 	glfw.Init()
 	glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
-	window = glfw.CreateWindow(2800, 1600, "HELLO WORLD", nil, nil)
+	window = glfw.CreateWindow(1800, 900, "HELLO WORLD", nil, nil)
 }
+
+
+
 
 initialize_vulkan_instance :: proc() {
 	vk.load_proc_addresses(rawptr(glfw.GetInstanceProcAddress))
@@ -140,7 +144,7 @@ initialize_vulkan_device :: proc() {
 }
 
 initialize_vulkan_swapchain :: proc() {
-	extent := vk.Extent2D {2800, 1600}
+	extent := vk.Extent2D {1800, 900}
 
 	swapchain_create_info: vk.SwapchainCreateInfoKHR
 	swapchain_create_info.sType = .SWAPCHAIN_CREATE_INFO_KHR
