@@ -7,6 +7,9 @@ import vk   "vendor:vulkan"
 
 FRAMES_IN_FLIGHT :: 2
 
+width               : i32 = 1800
+height              : i32 = 900
+
 window              : glfw.WindowHandle
 instance            : vk.Instance
 physical_device     : vk.PhysicalDevice
@@ -45,7 +48,7 @@ check_vk :: proc(result: vk.Result, location := #caller_location) {
 initialize_main_window :: proc () {
 	glfw.Init()
 	glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
-	window = glfw.CreateWindow(1800, 900, "HELLO WORLD", nil, nil)
+	window = glfw.CreateWindow(width, height, "HELLO WORLD", nil, nil)
 }
 
 
@@ -144,7 +147,7 @@ initialize_vulkan_device :: proc() {
 }
 
 initialize_vulkan_swapchain :: proc() {
-	extent := vk.Extent2D {1800, 900}
+	extent := vk.Extent2D{u32(width), u32(height)}
 
 	swapchain_create_info: vk.SwapchainCreateInfoKHR
 	swapchain_create_info.sType = .SWAPCHAIN_CREATE_INFO_KHR
@@ -215,7 +218,28 @@ initialize_vulkan_per_frame :: proc () {
    	}
 }
 
-
+transition_image :: proc (cmd: vk.CommandBuffer, image: vk.Image, from: vk.ImageLayout, to: vk.ImageLayout) {
+			// Image transition
+			memory_barrier: vk.ImageMemoryBarrier2
+			memory_barrier.sType = .IMAGE_MEMORY_BARRIER_2
+			memory_barrier.image = image
+			memory_barrier.srcStageMask = { .ALL_COMMANDS }
+			memory_barrier.srcAccessMask = { .MEMORY_WRITE }
+			memory_barrier.dstStageMask = { .ALL_COMMANDS }
+			memory_barrier.dstAccessMask = { .MEMORY_WRITE, .MEMORY_READ }
+			memory_barrier.oldLayout = from
+			memory_barrier.newLayout = to
+			memory_barrier.srcQueueFamilyIndex = queue_family
+			memory_barrier.subresourceRange.aspectMask = { .COLOR }
+			memory_barrier.subresourceRange.layerCount = vk.REMAINING_ARRAY_LAYERS
+			memory_barrier.subresourceRange.levelCount = vk.REMAINING_MIP_LEVELS
+	
+			dependency_info: vk.DependencyInfo
+			dependency_info.sType = .DEPENDENCY_INFO
+			dependency_info.imageMemoryBarrierCount  = 1
+			dependency_info.pImageMemoryBarriers = &memory_barrier
+			vk.CmdPipelineBarrier2(cmd, &dependency_info)
+}
 
 run_event_loop :: proc() {
 
@@ -243,26 +267,7 @@ run_event_loop :: proc() {
 		command_buffer_begin_info.flags = { .ONE_TIME_SUBMIT }
 		check_vk(vk.BeginCommandBuffer(command_buffer[frame_index], &command_buffer_begin_info))
 
-		// Image transition
-		memory_barrier: vk.ImageMemoryBarrier2
-		memory_barrier.sType = .IMAGE_MEMORY_BARRIER_2
-		memory_barrier.image = images[image_index]
-		memory_barrier.srcStageMask = { .ALL_COMMANDS }
-		memory_barrier.srcAccessMask = { .MEMORY_WRITE }
-		memory_barrier.dstStageMask = { .ALL_COMMANDS }
-		memory_barrier.dstAccessMask = { .MEMORY_WRITE, .MEMORY_READ }
-		memory_barrier.oldLayout = .UNDEFINED
-		memory_barrier.newLayout = .GENERAL
-		memory_barrier.srcQueueFamilyIndex = queue_family
-		memory_barrier.subresourceRange.aspectMask = { .COLOR }
-		memory_barrier.subresourceRange.layerCount = 1
-		memory_barrier.subresourceRange.levelCount = 1
-
-		dependency_info: vk.DependencyInfo
-		dependency_info.sType = .DEPENDENCY_INFO
-		dependency_info.imageMemoryBarrierCount  = 1
-		dependency_info.pImageMemoryBarriers = &memory_barrier
-		vk.CmdPipelineBarrier2(command_buffer[frame_index], &dependency_info)
+		transition_image(command_buffer[frame_index], images[image_index], .UNDEFINED, .GENERAL)
 
 
 		// Can we clear the buffer here?
@@ -280,23 +285,7 @@ run_event_loop :: proc() {
 		vk.CmdClearColorImage(command_buffer[frame_index], images[image_index], .GENERAL, &clear_value, 1, &range_clear)
 
 		// Image transition
-		memory_barrier.sType = .IMAGE_MEMORY_BARRIER_2
-		memory_barrier.image = images[image_index]
-		memory_barrier.srcStageMask = { .ALL_COMMANDS }
-		memory_barrier.srcAccessMask = { .MEMORY_WRITE }
-		memory_barrier.dstStageMask = { .ALL_COMMANDS }
-		memory_barrier.dstAccessMask = { .MEMORY_WRITE, .MEMORY_READ }
-		memory_barrier.oldLayout = .GENERAL
-		memory_barrier.newLayout = .PRESENT_SRC_KHR
-		memory_barrier.srcQueueFamilyIndex = queue_family
-		memory_barrier.subresourceRange.aspectMask = { .COLOR }
-		memory_barrier.subresourceRange.layerCount = 1
-		memory_barrier.subresourceRange.levelCount = 1
-
-		dependency_info.sType = .DEPENDENCY_INFO
-		dependency_info.imageMemoryBarrierCount  = 1
-		dependency_info.pImageMemoryBarriers = &memory_barrier
-		vk.CmdPipelineBarrier2(command_buffer[frame_index], &dependency_info)
+		transition_image(command_buffer[frame_index], images[image_index], .GENERAL, .PRESENT_SRC_KHR)
 
 
 		check_vk(vk.EndCommandBuffer(command_buffer[frame_index]))
